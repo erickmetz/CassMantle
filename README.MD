@@ -30,6 +30,9 @@ pip install -r requirements.txt
 
 # download NTLTK dependencies
 python download_model.py
+
+# serve application
+uvicorn  main:app --host 0.0.0.0 --port 8000
 ```
 
 ## With Docker
