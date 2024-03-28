@@ -1,12 +1,10 @@
 import gc
 import io
-import os
 import nltk
 import string
 import aiohttp
 import asyncio
 import numpy as np
-import logging
 from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing import List, Optional, Any, Dict
@@ -45,7 +43,6 @@ async def api_call(
     for retry in range(max_retries):
         try:
             print("[INFO] Making request...")
-            
             async with session.request(
                 method, url, headers=headers, json=json_payload, ssl=False
             ) as response:
@@ -82,10 +79,6 @@ def semantic_distance(word, word_list, model):
     return 0
 
 def select_descriptive_words(model, sentence, num_words=2):
-    # ensure data is available relative and container paths
-    nltk.data.path.append("./data")
-    nltk.data.path.append("/app_demo/data")
-
     # Tokenize and POS tag
     words = nltk.word_tokenize(sentence)
     tagged_words = nltk.pos_tag(words)

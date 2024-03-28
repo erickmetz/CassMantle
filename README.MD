@@ -1,7 +1,6 @@
 ![Logo](media/logo.png)
 
 # CassMantle
-Created by and forked from [https://github.com/SnowCheetos/CassMantle](https://github.com/SnowCheetos/CassMantle)
 
 ## Introduction
 
@@ -12,95 +11,3 @@ You are required to guess the missing parts of the prompt (semi-randomly generat
 The prompts are generated in sequential fashion. A seed prompt (story name) is used to generate the first prompt, all episodes after will use the previous prompt as its seed prompt, until the maximum number of episodes are reached.
 
 ![Screenshot Taken From Testing](media/demo.png)
-
-# Running CassMantle
-1. Get a [Hugging Face](https://huggingface.co/) API key 
-2. Put the APK_KEY contents in api_key.txt
-
-## Without Containerization
-```console
-# setup up python virtual environment
-python -m venv venv
-
-# activate virtual environment
-source venv/bin/activate
-
-# install requirements
-pip install -r requirements.txt
-
-# download NTLTK dependencies
-python download_model.py
-```
-
-## With Docker
-```console
-# setup up python virtual environment
-python -m venv venv
-
-# activate virtual environment
-source venv/bin/activate
-
-# install requirements
-pip install -r requirements.txt
-
-# download NTLTK dependencies
-python download_model.py
-
-# deactivate virtual environment
-deactivate
-
-# run redis container
-docker run -d -p6379:6379 redis
-
-# build image and run CassMantle
-docker build -t cassmantle .
-docker run cassmantle -p '8000:8000'
-```
-
-## With Docker Compose
-```console
-# setup up python virtual environment
-python -m venv venv
-
-# activate virtual environment
-source venv/bin/activate
-
-# install requirements
-pip install -r requirements.txt
-
-# download NTLTK dependencies
-python download_model.py
-
-# deactivate virtual environment
-deactivate
-
-# build image and run CassMantle
-docker build -t cassmantle .
-
-docker-compose up -d
-```
-
-# Proxy Game (HTTPS and Websockets) through pre-existing Nginx web server
-Add the following to your site configuration file (sometimes located in /etc/nginx/sites-available/your-domain-name-here) within the server {} nesting:
-```
-    location /clock {
-        proxy_pass http://127.0.0.1:8000/clock;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
-
-    location /app/cassmantle/ {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host $host;
-    }
-
-```
-Test configuration and restart nginx
-
-```console
-# nginx -t && nginx -s reload
-```
-
-Browse to https://your-domain-name-here/app/cassmantle
