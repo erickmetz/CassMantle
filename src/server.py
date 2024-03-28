@@ -63,6 +63,7 @@ class Server(Backend):
     async def compute_client_scores(self, session: str, inputs: Dict[str, str]) -> Dict[str, str]:
         prompt = await self.fetch_current_prompt()
         pairs = {}
+        tries = await self.fetch_client_tries(session)
         for m in inputs.keys():
             pairs.update({
                 m: {
@@ -70,10 +71,41 @@ class Server(Backend):
                     "answer": prompt['tokens'][int(m)]
                 }
             })
+            
         scores = await self.compute_scores(pairs)
         scores = await self.set_client_scores(session, scores)
+        for m in inputs.keys():
+            tries.update({ inputs[m]: scores[m] })
+        
+        await self.set_client_tries(session, tries)
         await self.increment_attempt(session)
         return scores
+
+    async def set_client_tries(self, session: str, tries: Dict[str, str]) -> Dict[str, str]:
+        # sort
+        sorted_tries = {}
+        for w in sorted(tries, key=tries.get, reverse=False):
+            sorted_tries.update({ w: tries[w] })
+
+        # store tries
+        session_tries = f"{session}-{self.seed}-{self.chapter}-tries"
+        for key in sorted_tries.keys():
+            await self.redis_conn.hset(session_tries, key, sorted_tries[key])
+        
+        return sorted_tries
+    
+    async def fetch_client_tries(self, session: str) -> Dict[str, str]:
+        session_tries = f"{session}-{self.seed}-{self.chapter}-tries"
+
+        contents = await self.redis_conn.hgetall(session_tries)
+        contents = {key.decode(): value.decode() for key, value in contents.items()}
+
+        # sort
+        sorted_tries = {}
+        for w in sorted(contents, key=contents.get, reverse=False):
+            sorted_tries.update({ w: contents[w] })
+
+        return sorted_tries
 
     async def set_client_scores(self, session: str, scores: Dict[str, str]) -> Dict[str, str]:
         curr_scores = await self.fetch_client_scores(session)
@@ -97,6 +129,7 @@ class Server(Backend):
         prompt = await self.fetch_current_prompt()
         scores = await self.fetch_client_scores(session_id)
         attempts = await self.redis_conn.hget(session_id, 'attempts')
+        tries = await self.fetch_client_tries(session_id)
         while attempts is None:
             await asyncio.sleep(0.1)
             attempts = await self.redis_conn.hget(session_id, 'attempts')
@@ -119,7 +152,7 @@ class Server(Backend):
                 else:
                     prompt['tokens'][mask] = '*'
 
-        prompt.update({'scores': scores, 'attempts': attempts})
+        prompt.update({'scores': scores, 'attempts': attempts, 'tries': tries})
         return prompt
 
     async def fetch_story(self) -> Dict[str, str]:
