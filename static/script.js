@@ -1,7 +1,5 @@
 let dictionary = null;
 let dictionaryReady = false;
-var last_input
-var focus_input
 
 fetch('./data/en_US.aff').then(response => response.text()).then((affData) => {
     fetch('./data/en_US.dic').then(response => response.text()).then((dicData) => {
@@ -65,7 +63,7 @@ function initializeAppLogic() {
             app.initializeWebSocket();
 
             // Check the client's status after initializing the session
-            fetch("./client/status", {
+            fetch("/client/status", {
                 method: "GET",
                 credentials: 'include', // to ensure cookies are sent with the request
             })
@@ -98,7 +96,7 @@ function initializeApp() {
 
     async function initializeSession() {
         try {
-            const response = await fetch("./client/status", {
+            const response = await fetch("/client/status", {
                 method: "GET",
                 credentials: 'include',
             });
@@ -106,7 +104,7 @@ function initializeApp() {
             const data = await response.json();
     
             if (data.needInitialization) {
-                const initResponse = await fetch("./init", {
+                const initResponse = await fetch("/init", {
                     method: "GET",
                     credentials: 'include',
                 });
@@ -138,7 +136,7 @@ function initializeApp() {
 
     async function fetchAndDisplayContents(prompt) {
         try {
-            const response = await fetch('./fetch/contents', {
+            const response = await fetch('/fetch/contents', {
                 method: "GET",
                 credentials: 'include'
             });
@@ -156,9 +154,7 @@ function initializeApp() {
                         'Good luck next round.'
                     ],
                     masks: [],
-                    correct: [1],
-                    tries: data.prompt.tries, 
-                    attempts: data.prompt.attempts
+                    correct: [1]
                 });
             }
         } catch (err) {
@@ -288,45 +284,19 @@ function getScoreColor(score) {
 }
 
 function displayPrompt(promptData) {
-    const { tokens, masks, correct, attempts, tries } = promptData;
+    const { tokens, masks, correct } = promptData;
     const promptContainer = document.getElementById("prompt-container");
-    const triesContainer = document.getElementById("tries-container");
-    const attemptsContainer = document.getElementById("attempts-container");
     promptContainer.style.paddingBottom = '40px';
-    
-    attemptsContainer.textContent = "Attempts: " + attempts;  
-
-    // // Clear any existing tries content
-    while (triesContainer.firstChild) {
-        triesContainer.firstChild.remove();
-    }
-    
-    for (const [key, value] of Object.entries(tries)) {
-        var score = parseFloat(value);
-        const div = document.createElement("div");
-        rounded_score = `${(score * 100).toFixed(2)}`
-        if (rounded_score.length == 4) {
-            rounded_score = "0" + rounded_score
-        }
-        div.textContent = "Score: " + rounded_score + ": " + key
-        div.className = "try-container"
-        triesContainer.appendChild(div)
-    }
-    triesContainer.scrollTop = triesContainer.scrollHeight
-    
     // // Clear any existing content, but keep the submit button
     while (promptContainer.firstChild && promptContainer.firstChild.id !== 'submit-button') {
         promptContainer.firstChild.remove();
     }
-
-    input_count = 0
-    input_elems = []
+    
     tokens.forEach((token, index) => {
         if (masks.includes(index)) {
             var score = parseFloat(promptData.scores[index]);
             const inputField = document.createElement("input");
-            const span = document.createElement("span");        
-
+            const span = document.createElement("span");
             if (score > 0) {
                 if (score > 0.1) {
                     var ph = `${(score * 100).toFixed(2)}`;
@@ -336,7 +306,6 @@ function displayPrompt(promptData) {
             } else {
                 var ph = "";
             }
-
             span.textContent = " ";
             promptContainer.appendChild(span);
             inputField.type = "text";
@@ -351,20 +320,8 @@ function displayPrompt(promptData) {
             inputField.style.margin = "3px";
             inputField.style.transition = 'background 0.3s';
 
-            // Add hover effect
-            inputField.onmouseover = function() {
-                inputField.focus()
-            };
-
-            // Add onfocus effect
-            inputField.onfocus = function() {
-                last_focus = input_count
-            };
-
-            input_elems.push(inputField)
-            input_count = input_count + 1
-
             promptContainer.appendChild(inputField);
+
         } else {
             // Otherwise, add a span with the token
             const span = document.createElement("span");
@@ -381,10 +338,6 @@ function displayPrompt(promptData) {
             promptContainer.appendChild(span);
         }
     });
-
-    if (input_elems.length > 0) {
-        input_elems[0].focus();
-    }
 
     // Ensure the submit button is appended last
     const submitButton = document.getElementById('submit-button');
@@ -436,7 +389,7 @@ function submitInputs(app) {
     // If any input has a typo, don't send the data to the server
     if (hasAnyTypos) return;
 
-    fetch("./compute_score", {
+    fetch("/compute_score", {
         method: "POST",
         credentials: 'include',
         headers: {
