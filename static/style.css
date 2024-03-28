@@ -26,8 +26,8 @@ html, body {
     top: 30px;
     right: 30px;
     background-color: transparent;
-    width: 50px;
-    height: 50px;
+    width: 100px;
+    height: 100px;
     background-size: contain;
     background-repeat: no-repeat;
     transition: transform 0.3s, opacity 0.3s;
@@ -83,6 +83,24 @@ html, body {
     background-position: center;
 }
 
+#tries-container {
+    text-align:left;
+    height: 30%;
+    max-height: 200px;
+    overflow-y:scroll;
+}
+
+#attempts-container {
+    text-align:left;
+    padding:5px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.try-container {
+    padding:5px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
 .image-container {
     position: relative;
     width: 100%;
@@ -113,7 +131,7 @@ html, body {
     bottom: 0;
     width: 100%;
     height: auto;
-    max-height: 50%;
+    max-height: 75%;
     text-align: center;
     padding: 5vw;
     background: linear-gradient(to top, rgb(123, 89, 53, 0.9), transparent);

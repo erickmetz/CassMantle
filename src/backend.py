@@ -5,12 +5,17 @@ import asyncio
 import random
 import aiohttp
 import aioredis
+import logging
+import os
 
 from aioredis.exceptions import LockError
 from gensim.models import KeyedVectors
 from PIL import Image, ImageFilter
 from typing import List, Dict, Tuple
 from src.utils import encode_image, api_call, construct_prompt_dict
+
+async def on_request_start(session, context, params):
+    logging.getLogger('aiohttp.client').debug(f'Starting request <{params}>')
 
 class Backend:
     """
@@ -26,7 +31,12 @@ class Backend:
         ) -> None:
         
         self.min_score = min_score
-        with open('api_key.txt', 'r') as f: API_TOKEN = f.readline().strip()
+        
+        # try and get API_KEY as an environment variable before searching out a local file
+        try:
+            API_TOKEN = os.environ['API_KEY']
+        except Exception as e:
+            with open('api_key.txt', 'r') as f: API_TOKEN = f.readline().strip()
         
         self.seeds = []
         with open('data/seeds.txt', 'r') as f:
@@ -48,18 +58,23 @@ class Backend:
         self.acquire_timeout = 2
         self.num_masked = 2
         self.episode_per_story = 20
+        self.seed = ''
+        self.chapter = 0
 
     async def select_style(self) -> str:
         return self.styles[random.randint(0, len(self.styles) - 1)]
 
     async def select_seed(self) -> str:
         seed = self.seeds[random.randint(0, len(self.seeds) - 1)]
+        self.seed = seed
         return seed
 
     async def init_story(self, seed: str) -> None:
+        self.seed = seed
         await self.redis_conn.hset("story", mapping={"title": seed, "episode": 0})
 
     async def set_next_story(self, seed: str) -> None:
+        self.seed = seed
         await self.redis_conn.hset("story", "next", seed)
 
     async def reset_story(self) -> None:
@@ -68,9 +83,16 @@ class Backend:
         await self.redis_conn.hdel("story", "next")
 
     async def initialize_redis(self) -> aioredis.Redis:
-        return await aioredis.Redis(host='localhost', decode_responses=False)
+        try:
+            REDIS_HOST = os.environ['REDIS_HOST']
+        except Exception as e:
+            REDIS_HOST = 'localhost'
+
+        return await aioredis.Redis(host=REDIS_HOST, decode_responses=False)
+
 
     async def startup(self) -> None:
+
         await asyncio.sleep(random.random())
         self.redis_conn = await self.initialize_redis()
 
@@ -78,6 +100,11 @@ class Backend:
         await self.redis_conn.hset('image', 'status', 'idle')
 
         chapter = 1 #random.randint(1, 10)
+        self.chapter = chapter
+
+        logging.basicConfig(level=logging.DEBUG)
+        trace_config = aiohttp.TraceConfig()
+        trace_config.on_request_start.append(on_request_start)
 
         try:
             async with self.redis_conn.lock(
@@ -97,6 +124,7 @@ class Backend:
                 ):
                     async with aiohttp.ClientSession(
                         timeout=aiohttp.ClientTimeout(total=60), 
+                        trace_configs=[trace_config],
                         raise_for_status=True
                     ) as http_session:
 
@@ -139,7 +167,7 @@ class Backend:
         is_seed = False
         
         if eps < self.episode_per_story:
-            print(f"[DEBUG] Episode {eps}/{self.episode_per_story}")
+            # print(f"[DEBUG] Episode {eps}/{self.episode_per_story}")
             # Use current prompt
             seed = (await self.redis_conn.hget('prompt', 'seed')).decode()
         
@@ -150,8 +178,11 @@ class Backend:
         return is_seed, seed
 
     async def buffer_contents(self) -> None:
-        chapter = 1 #random.randint(1, 10)
+        chapter = 1 # random.randint(1, 100)
+        self.chapter = chapter
+
         try:
+            
             async with self.redis_conn.lock(
                 "buffer_lock", 
                 timeout=self.lock_timeout,
@@ -163,6 +194,7 @@ class Backend:
                     print("[INFO] Restarting storyline.")
                     await self.set_next_story(seed)
                     seed += f"\nChapter {chapter}\n\n"
+                    self.seed = seed
 
                 if (
                     await self.redis_conn.hget('prompt', 'next') is None
@@ -171,8 +203,13 @@ class Backend:
                 ):
                     print("[INFO] Generating content buffer")
 
+                    logging.basicConfig(level=logging.DEBUG)
+                    trace_config = aiohttp.TraceConfig()
+                    trace_config.on_request_start.append(on_request_start)
+
                     async with aiohttp.ClientSession(
-                        timeout=aiohttp.ClientTimeout(total=60), 
+                        timeout=aiohttp.ClientTimeout(total=60),
+                        trace_configs=[trace_config],
                         raise_for_status=True
                     ) as http_session:
                         
@@ -226,7 +263,7 @@ class Backend:
                     if await self.redis_conn.hget("story", "next") is not None:
                         await self.reset_story()
 
-                    await self.redis_conn.hincrby("story", "episode", 1)
+                    await self.redis_conn.hset("story", "episode", random())
                     print("[INFO] Buffer promotion complete")
 
         except LockError:
@@ -236,7 +273,7 @@ class Backend:
         except Exception as e:
             print(f"[ERROR] An unexpected error occurred: {str(e)}")
             return
-
+        
     async def generate_prompt(self, http_session: aiohttp.ClientSession, seed: str, is_seed: bool) -> str:
         print("[INFO] Generating prompt...")
         await self.redis_conn.hset('prompt', 'status', 'busy')
@@ -249,8 +286,8 @@ class Backend:
             json_payload={
                 "inputs": seed,
                 "parameters": {
-                    "min_new_tokens": 32,
-                    "max_new_tokens": 96
+                    "min_new_tokens": random.randint(48, 56),
+                    "max_new_tokens": random.randint(96, 132), 
                 }
             },
             max_retries=self.max_retries,

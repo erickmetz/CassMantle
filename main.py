@@ -2,6 +2,7 @@ import io
 import uuid
 import base64
 import asyncio
+import logging
 
 from src.server import Server
 from fastapi import FastAPI, Cookie, HTTPException, WebSocket, WebSocketException
@@ -16,6 +17,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 app = FastAPI(docs_url=None, redoc_url=None)
+#app = FastAPI(lifespan=lifespan)
 limiter = Limiter(key_func=get_remote_address, default_limits=["3/second"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -47,7 +49,10 @@ async def read_root(request: Request):
 @app.get("/init")
 @limiter.limit("2/second")
 async def initialize_session(request: Request, response: Response):
+    # print(f"DEBUG: req {request} resp {response}")
     session_id = str(uuid.uuid4())
+    # print(f"DEBUG: session_ id {session_id}")
+
     response.set_cookie(key="session_id", value=session_id)
     await server.init_client(session_id)
     return {"message": "Session initialized", "session_id": session_id}
@@ -117,4 +122,6 @@ async def compute_score(request: Request, session_id: str = Cookie(None)):
         await server.init_client(session_id)
     data = await request.json()
     scores = await server.compute_client_scores(session_id, data['inputs'])
-    return JSONResponse(scores)
+    tries = await server.fetch_client_tries(session_id)
+    data = [scores, tries]
+    return JSONResponse(data)
